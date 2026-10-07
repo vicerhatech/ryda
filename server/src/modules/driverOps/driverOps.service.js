@@ -138,15 +138,27 @@ export async function buildDashboard(driverId) {
 }
 
 function requestSummary(serviceType, item) {
-  return {
+  const destination = item.destination || item.dropoff;
+  const summary = {
     serviceType,
     id: item._id,
     pickup: item.pickup,
-    dropoff: item.destination || item.dropoff,
-    ...(serviceType === 'RIDE' ? { bookedSeats: item.bookedSeats } : {}),
+    ...(destination ? { destination } : {}),
+    ...(item.dropoff ? { dropoff: item.dropoff } : {}),
+    status: item.status,
+    fare: item.grossFare,
     grossFare: item.grossFare,
-    createdAt: item.createdAt
+    createdAt: item.createdAt,
+    ...(serviceType === 'RIDE' ? {
+      ...(item.bookedSeats != null ? { bookedSeats: item.bookedSeats } : {}),
+      ...(item.isPrivateRide != null ? { isPrivateRide: item.isPrivateRide } : {})
+    } : {
+      ...(item.recipientName ? { recipientName: item.recipientName } : {}),
+      ...(item.packageDescription ? { packageDescription: item.packageDescription } : {})
+    })
   };
+
+  return summary;
 }
 
 export async function getAvailableRequests(driverId) {
@@ -161,6 +173,11 @@ export async function getAvailableRequests(driverId) {
     CourierDelivery ? CourierDelivery.find({ status: 'REQUESTED', driverId: null }).sort({ createdAt: 1 }).lean() : []
   ]);
 
-  return [...rides.map((item) => requestSummary('RIDE', item)), ...courier.map((item) => requestSummary('COURIER', item))]
+  const requests = [...rides.map((item) => requestSummary('RIDE', item)), ...courier.map((item) => requestSummary('COURIER', item))]
     .sort((first, second) => new Date(first.createdAt) - new Date(second.createdAt));
+
+  return {
+    requests,
+    sources: { ride: Boolean(Ride), courier: Boolean(CourierDelivery) }
+  };
 }

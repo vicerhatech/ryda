@@ -77,7 +77,7 @@ export function ActiveAssignmentCard({ assignment }) {
   );
 }
 
-export function RequestFeed({ requests, loading }) {
+export function RequestFeed({ requests, loading, acceptingId, onAccept }) {
   if (loading) return <p className="text-sm text-slate-600">Loading available requests…</p>;
   if (!requests.length) return <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">No ride or courier requests are available right now.</p>;
 
@@ -90,8 +90,11 @@ export function RequestFeed({ requests, loading }) {
             {request.serviceType === 'RIDE' && request.bookedSeats != null && <span className="text-sm font-medium text-slate-700">{request.bookedSeats} seat{request.bookedSeats === 1 ? '' : 's'}</span>}
           </div>
           <p className="mt-3 text-sm text-slate-700"><span className="font-medium">Pickup:</span> {locationLabel(request.pickup)}</p>
-          <p className="mt-1 text-sm text-slate-700"><span className="font-medium">Drop-off:</span> {locationLabel(request.dropoff)}</p>
-          {typeof request.grossFare === 'number' && <p className="mt-3 text-sm font-semibold text-slate-900">Fare: {amount(request.grossFare)}</p>}
+          <p className="mt-1 text-sm text-slate-700"><span className="font-medium">{request.serviceType === 'RIDE' ? 'Destination' : 'Drop-off'}:</span> {locationLabel(request.destination || request.dropoff)}</p>
+          {request.serviceType === 'RIDE' && (request.isPrivateRide || request.bookedSeats === 4) && <p className="mt-2 text-sm font-semibold text-indigo-800">Private Keke</p>}
+          {request.serviceType === 'COURIER' && (request.recipientName || request.packageDescription) && <p className="mt-2 text-sm text-slate-700"><span className="font-medium">Courier:</span> {[request.recipientName, request.packageDescription].filter(Boolean).join(' · ')}</p>}
+          {typeof (request.fare ?? request.grossFare) === 'number' && <p className="mt-3 text-sm font-semibold text-slate-900">Fare: {amount(request.fare ?? request.grossFare)}</p>}
+          <button type="button" disabled={Boolean(acceptingId)} onClick={() => onAccept(request)} className="mt-4 rounded-lg bg-indigo-700 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-60">{acceptingId === request.id ? 'Accepting…' : `Accept ${request.serviceType}`}</button>
         </article>
       ))}
     </div>
@@ -132,6 +135,8 @@ export default function DriverDashboardPage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [requestLoading, setRequestLoading] = useState(false);
+  const [requestSources, setRequestSources] = useState({ ride: true, courier: true });
+  const [acceptingId, setAcceptingId] = useState('');
   const [savingAvailability, setSavingAvailability] = useState(false);
   const [error, setError] = useState('');
   const [requestError, setRequestError] = useState('');
@@ -143,8 +148,10 @@ export default function DriverDashboardPage() {
     try {
       const response = await api.get('/driver/requests');
       setRequests(Array.isArray(response.data?.requests) ? response.data.requests : []);
+      setRequestSources(response.data?.sources || { ride: true, courier: true });
     } catch (requestErrorResponse) {
       setRequests([]);
+      setRequestSources({ ride: true, courier: true });
       setRequestError(getErrorMessage(requestErrorResponse, 'Unable to load available requests.'));
     } finally {
       setRequestLoading(false);
@@ -187,6 +194,24 @@ export default function DriverDashboardPage() {
       setError(getErrorMessage(availabilityError, 'Unable to update availability.'));
     } finally {
       setSavingAvailability(false);
+    }
+  }
+
+  async function acceptRequest(request) {
+    const endpoint = request.serviceType === 'RIDE'
+      ? `/rides/${request.id}/accept`
+      : `/courier/${request.id}/accept`;
+    setAcceptingId(request.id);
+    setRequestError('');
+    setFeedback('');
+    try {
+      await api.post(endpoint);
+      setFeedback(`${request.serviceType} request accepted. Your dashboard has been refreshed.`);
+      await loadDashboard();
+    } catch (acceptError) {
+      setRequestError(getErrorMessage(acceptError, `Unable to accept this ${request.serviceType.toLowerCase()} request.`));
+    } finally {
+      setAcceptingId('');
     }
   }
 
@@ -235,7 +260,9 @@ export default function DriverDashboardPage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">Available requests</h2><button type="button" onClick={loadRequests} disabled={requestLoading} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-60">Refresh requests</button></div>
           {requestError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{requestError}</p>}
-          <RequestFeed requests={requests} loading={requestLoading} />
+          {requestSources.ride === false && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Ride opportunities are temporarily unavailable while the Ride module is being integrated.</p>}
+          {requestSources.courier === false && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Courier opportunities are temporarily unavailable while the Courier module is being integrated.</p>}
+          <RequestFeed requests={requests} loading={requestLoading} acceptingId={acceptingId} onAccept={acceptRequest} />
         </section>
       </>}
     </main>

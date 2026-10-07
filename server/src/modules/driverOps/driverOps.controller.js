@@ -31,8 +31,8 @@ export async function getDriverDashboard(request, response, next) {
 
 export async function getDriverRequests(request, response, next) {
   try {
-    const requests = await getAvailableRequests(request.user.id);
-    return response.status(200).json({ requests });
+    const result = await getAvailableRequests(request.user.id);
+    return response.status(200).json(result);
   } catch (error) {
     return next(error);
   }
