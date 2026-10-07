@@ -6,6 +6,7 @@ import {
   getSenderCourierDelivery,
   updateCourierDeliveryStatus
 } from './courier.service.js';
+import { emitCourierAccepted, emitCourierStatusUpdate } from './courier.socket.js';
 
 export async function createCourier(request, response, next) {
   try {
@@ -46,6 +47,7 @@ export async function cancelCourier(request, response, next) {
 export async function acceptCourier(request, response, next) {
   try {
     const courier = await acceptCourierDelivery(request.user.id, request.params.id);
+    emitCourierAccepted(courier);
     return response.status(200).json({ courier });
   } catch (error) {
     return next(error);
@@ -55,6 +57,7 @@ export async function acceptCourier(request, response, next) {
 export async function updateCourierStatus(request, response, next) {
   try {
     const courier = await updateCourierDeliveryStatus(request.user.id, request.params.id, request.body.status);
+    emitCourierStatusUpdate(courier);
     return response.status(200).json({ courier });
   } catch (error) {
     return next(error);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RYDA_CONFIG } from '../../shared/constants/rydaConfig.js';
 import { api } from '../../shared/lib/api.js';
+import { CourierLiveTracking } from './CourierTracking.jsx';
 
 const initialForm = {
   recipientName: '', recipientPhone: '', packageDescription: '',
@@ -115,7 +116,7 @@ function LocationFields({ title, prefix, form, onChange }) {
   );
 }
 
-export function CourierDetail({ courier, loading, error, onCancel, cancelling }) {
+export function CourierDetail({ courier, loading, error, onCancel, cancelling, onCourierUpdate }) {
   if (loading) return <p className="text-sm text-slate-600">Loading courier details…</p>;
   if (error) return <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>;
   if (!courier) return <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">Select a courier request to view its details.</p>;
@@ -132,6 +133,7 @@ export function CourierDetail({ courier, loading, error, onCancel, cancelling })
         <div><dt className="font-medium text-slate-500">Pickup</dt><dd className="mt-1">{courier.pickup?.address || 'Unavailable'}</dd></div>
         <div><dt className="font-medium text-slate-500">Drop-off</dt><dd className="mt-1">{courier.dropoff?.address || 'Unavailable'}</dd></div>
       </dl>
+      <CourierLiveTracking courier={courier} onCourierUpdate={onCourierUpdate} />
       {canCancel(courier) && <button type="button" disabled={cancelling} onClick={() => onCancel(courier._id)} className="mt-5 rounded-lg border border-rose-300 px-4 py-2 font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60">{cancelling ? 'Cancelling…' : 'Cancel courier request'}</button>}
     </article>
   );
@@ -197,7 +199,7 @@ export default function CourierSenderPage() {
       <CourierCreateForm onCreated={handleCreated} />
       <section className="grid gap-6 lg:grid-cols-2">
         <div><div className="mb-3 flex items-center justify-between"><h2 className="text-xl font-bold">Your courier requests</h2><button type="button" onClick={loadHistory} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">Refresh</button></div><CourierHistory couriers={couriers} loading={loadingHistory} error={historyError} onSelect={selectCourier} /></div>
-        <CourierDetail courier={selected} loading={loadingDetail} error={detailError} onCancel={cancelCourier} cancelling={cancelling} />
+        <CourierDetail courier={selected} loading={loadingDetail} error={detailError} onCancel={cancelCourier} cancelling={cancelling} onCourierUpdate={setSelected} />
       </section>
     </main>
   );
