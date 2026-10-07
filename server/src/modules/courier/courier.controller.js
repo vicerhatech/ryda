@@ -1,8 +1,10 @@
 import {
+  acceptCourierDelivery,
   cancelSenderCourierDelivery,
   createCourierDelivery,
   getSenderCourierDeliveries,
-  getSenderCourierDelivery
+  getSenderCourierDelivery,
+  updateCourierDeliveryStatus
 } from './courier.service.js';
 
 export async function createCourier(request, response, next) {
@@ -36,6 +38,24 @@ export async function cancelCourier(request, response, next) {
   try {
     const result = await cancelSenderCourierDelivery(request.user.id, request.params.id);
     return response.status(200).json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function acceptCourier(request, response, next) {
+  try {
+    const courier = await acceptCourierDelivery(request.user.id, request.params.id);
+    return response.status(200).json({ courier });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function updateCourierStatus(request, response, next) {
+  try {
+    const courier = await updateCourierDeliveryStatus(request.user.id, request.params.id, request.body.status);
+    return response.status(200).json({ courier });
   } catch (error) {
     return next(error);
   }
