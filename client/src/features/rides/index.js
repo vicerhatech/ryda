@@ -1,2 +1,7 @@
 export { default as RideBookingPage } from './pages/RideBookingPage';
+export { default as RideHistoryPage } from './pages/RideHistoryPage';
 export { default as RideMap } from './components/RideMap';
+export { default as RideTrackingMap } from './components/RideTrackingMap';
+export { default as DriverRideLocationPublisher } from './components/DriverRideLocationPublisher';
+export { useDriverRideLocationPublisher } from './hooks/useDriverRideLocationPublisher';
+export { useRiderRideTracking } from './hooks/useRiderRideTracking';
