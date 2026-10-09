@@ -3,7 +3,8 @@ import {
   fetchCurrentUser,
   getAuthError,
   loginAccount,
-  registerAccount
+  registerAccount,
+  updateProfile as updateProfileRequest
 } from '../api/authApi';
 
 const AUTH_TOKEN_KEY = 'ryda.auth.token';
@@ -97,6 +98,23 @@ export function AuthProvider({ children }) {
     [saveSession]
   );
 
+  const updateProfile = useCallback(
+    async (updates) => {
+      if (!token) {
+        throw new Error('Please log in before updating your profile.');
+      }
+
+      try {
+        const updatedUser = await updateProfileRequest(token, updates);
+        saveSession(token, updatedUser);
+        return updatedUser;
+      } catch (error) {
+        throw new Error(getAuthError(error));
+      }
+    },
+    [saveSession, token]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -106,6 +124,7 @@ export function AuthProvider({ children }) {
         isRestoring,
         login,
         register,
+        updateProfile,
         logout: clearSession
       }}
     >

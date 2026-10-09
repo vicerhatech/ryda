@@ -18,6 +18,14 @@ export async function fetchCurrentUser(token) {
   return response.data.user;
 }
 
+export async function updateProfile(token, payload) {
+  const response = await api.patch('/profile', payload, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  return response.data.user;
+}
+
 export function getAuthError(error) {
   return error.response?.data?.message || 'Unable to complete your request. Please try again.';
 }

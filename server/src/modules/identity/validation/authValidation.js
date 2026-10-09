@@ -50,3 +50,34 @@ export function validateLoginInput(input = {}) {
 
   return { email: email.trim().toLowerCase(), password };
 }
+
+export function validateProfileUpdate(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new AppError('Profile update data is required.', 400);
+  }
+
+  const allowedFields = ['fullName', 'phone'];
+  const fields = Object.keys(input);
+
+  if (!fields.length) {
+    throw new AppError('Provide at least one profile field to update.', 400);
+  }
+
+  if (fields.some((field) => !allowedFields.includes(field))) {
+    throw new AppError('Only fullName and phone can be updated.', 400);
+  }
+
+  const updates = {};
+
+  if ('fullName' in input) {
+    requireText(input.fullName, 'Full name');
+    updates.fullName = input.fullName.trim();
+  }
+
+  if ('phone' in input) {
+    requireText(input.phone, 'Phone');
+    updates.phone = input.phone.trim();
+  }
+
+  return updates;
+}

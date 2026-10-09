@@ -34,6 +34,19 @@ export async function getUserById(userId) {
   return user;
 }
 
+export async function updateUserProfile(userId, updates) {
+  const user = await User.findByIdAndUpdate(userId, updates, {
+    new: true,
+    runValidators: true
+  });
+
+  if (!user) {
+    throw new AppError('User not found.', 404);
+  }
+
+  return user;
+}
+
 export function createAccessToken(user) {
   if (!process.env.JWT_SECRET) {
     throw new AppError('JWT configuration is missing.', 500);
