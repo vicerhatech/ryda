@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
-import { getAuthError, getMyDriverVerification, submitDriverVerification } from '../api/authApi';
+import { getAuthError, getMyDriverVerification } from '../api/authApi';
 import { useAuth } from '../hooks/AuthContext';
 
 const INITIAL_VALUES = {
-  vehicleNumber: '',
-  vehicleImage: '',
-  identityDocument: ''
+  vehicleNumber: ''
 };
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const VEHICLE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const IDENTITY_DOCUMENT_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 
 const STATUS_STYLES = {
   PENDING: 'bg-amber-50 text-amber-800',
@@ -16,13 +17,30 @@ const STATUS_STYLES = {
   REJECTED: 'bg-rose-50 text-rose-800'
 };
 
+function validateFile(file, fieldName, allowedTypes) {
+  if (!file || file.size === 0) {
+    return `${fieldName} is required.`;
+  }
+
+  if (!allowedTypes.includes(file.type)) {
+    return `${fieldName} must use a supported file type.`;
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return `${fieldName} must be 5 MB or smaller.`;
+  }
+
+  return '';
+}
+
 export default function DriverVerificationPage() {
   const { user, token, isAuthenticated, isRestoring } = useAuth();
   const [profile, setProfile] = useState(null);
   const [values, setValues] = useState(INITIAL_VALUES);
+  const [vehicleImageFile, setVehicleImageFile] = useState(null);
+  const [identityDocumentFile, setIdentityDocumentFile] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!token || user?.role !== 'DRIVER') {
@@ -78,19 +96,36 @@ export default function DriverVerificationPage() {
     setValues((currentValues) => ({ ...currentValues, [name]: value }));
   }
 
-  async function handleSubmit(event) {
+  function handleFileChange(event, fieldName, allowedTypes, setFile) {
+    const file = event.target.files?.[0] || null;
+    const fileError = validateFile(file, fieldName, allowedTypes);
+
+    if (fileError) {
+      setFile(null);
+      setError(fileError);
+      event.target.value = '';
+      return;
+    }
+
+    setError('');
+    setFile(file);
+  }
+
+  function handleSubmit(event) {
     event.preventDefault();
     setError('');
-    setIsSubmitting(true);
 
-    try {
-      const submittedProfile = await submitDriverVerification(token, values);
-      setProfile(submittedProfile);
-    } catch (submissionError) {
-      setError(getAuthError(submissionError));
-    } finally {
-      setIsSubmitting(false);
+    const vehicleError = validateFile(vehicleImageFile, 'Keke image', VEHICLE_IMAGE_TYPES);
+    const documentError = validateFile(identityDocumentFile, 'Identity document', IDENTITY_DOCUMENT_TYPES);
+
+    if (vehicleError || documentError) {
+      setError(vehicleError || documentError);
+      return;
     }
+
+    setError(
+      'Secure file upload is not configured yet. A server-side Cloudinary upload endpoint is required before this verification can be submitted.'
+    );
   }
 
   if (profile) {
@@ -138,38 +173,41 @@ export default function DriverVerificationPage() {
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
-          Keke image URL
+          Keke image
           <input
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-            type="url"
+            type="file"
             name="vehicleImage"
-            value={values.vehicleImage}
-            onChange={handleChange}
-            placeholder="https://res.cloudinary.com/..."
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) =>
+              handleFileChange(event, 'Keke image', VEHICLE_IMAGE_TYPES, setVehicleImageFile)
+            }
             required
           />
+          {vehicleImageFile && <span className="mt-1 block text-xs font-normal text-slate-500">Selected: {vehicleImageFile.name}</span>}
         </label>
         <label className="block text-sm font-medium text-slate-700">
-          Identity document URL
+          Identity document
           <input
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-            type="url"
+            type="file"
             name="identityDocument"
-            value={values.identityDocument}
-            onChange={handleChange}
-            placeholder="https://res.cloudinary.com/..."
+            accept="image/jpeg,image/png,application/pdf"
+            onChange={(event) =>
+              handleFileChange(event, 'Identity document', IDENTITY_DOCUMENT_TYPES, setIdentityDocumentFile)
+            }
             required
           />
+          {identityDocumentFile && <span className="mt-1 block text-xs font-normal text-slate-500">Selected: {identityDocumentFile.name}</span>}
         </label>
         <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-          Upload your files to the team Cloudinary account and paste the HTTPS delivery URLs here. Ryda stores URLs only, never image files in the database.
+          Images and documents must be JPEG, PNG, or WebP for the Keke image; the identity document may also be a PDF. Each file must be 5 MB or smaller. Ryda will store Cloudinary URLs only, never your file bytes.
         </p>
         <button
-          className="w-full rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-teal-400"
+          className="w-full rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800"
           type="submit"
-          disabled={isSubmitting}
         >
-          {isSubmitting ? 'Submitting verification…' : 'Submit for verification'}
+          Submit for verification
         </button>
       </form>
     </AuthLayout>
