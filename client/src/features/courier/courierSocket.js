@@ -1,11 +1,9 @@
 import { io } from 'socket.io-client';
-import { api } from '../../shared/lib/api.js';
 
 let socket;
 
 function authToken() {
-  const authorization = api.defaults.headers.common.Authorization;
-  return typeof authorization === 'string' ? authorization.replace(/^Bearer\s+/i, '') : undefined;
+  return localStorage.getItem('ryda.auth.token') || undefined;
 }
 
 export function getCourierSocket() {

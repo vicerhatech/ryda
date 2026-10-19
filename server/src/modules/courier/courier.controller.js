@@ -38,6 +38,7 @@ export async function getCourierById(request, response, next) {
 export async function cancelCourier(request, response, next) {
   try {
     const result = await cancelSenderCourierDelivery(request.user.id, request.params.id);
+    emitCourierStatusUpdate(result.courier);
     return response.status(200).json(result);
   } catch (error) {
     return next(error);
@@ -56,9 +57,10 @@ export async function acceptCourier(request, response, next) {
 
 export async function updateCourierStatus(request, response, next) {
   try {
-    const courier = await updateCourierDeliveryStatus(request.user.id, request.params.id, request.body.status);
+    const result = await updateCourierDeliveryStatus(request.user.id, request.params.id, request.body.status);
+    const { courier } = result;
     emitCourierStatusUpdate(courier);
-    return response.status(200).json({ courier });
+    return response.status(200).json(result);
   } catch (error) {
     return next(error);
   }

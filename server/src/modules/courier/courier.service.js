@@ -4,6 +4,10 @@ import AppError from '../../shared/utils/AppError.js';
 import CourierDelivery from './courier.model.js';
 import { assertEligibleCourierDriver } from './courier.driverEligibility.js';
 import { validateCourierInput } from './courier.validation.js';
+import { ensureServicePlatformFeeLiability, waiveServicePlatformFeeLiability } from '../payments/services/liabilityService.js';
+import { creditCompletedPayment } from '../payments/services/paymentService.js';
+import Payment from '../payments/models/Payment.js';
+import { assertNoActiveAssignment } from '../../shared/services/activeAssignmentService.js';
 
 const COURIER_TRANSITIONS = Object.freeze({
   ACCEPTED: 'PICKED_UP',
@@ -66,6 +70,15 @@ export async function cancelSenderCourierDelivery(senderId, courierId) {
   courier.status = 'CANCELLED';
   await courier.save();
 
+  if (needsLiabilityWaiver) {
+    await waiveServicePlatformFeeLiability({
+      driverId: courier.driverId,
+      serviceType: 'COURIER',
+      serviceId: courier._id,
+      reason: 'Accepted unpaid courier delivery was cancelled.'
+    });
+  }
+
   return {
     courier,
     paymentIntegration: needsLiabilityWaiver
@@ -76,7 +89,13 @@ export async function cancelSenderCourierDelivery(senderId, courierId) {
 
 export async function acceptCourierDelivery(driverId, courierId) {
   validCourierId(courierId);
+  const alreadyAccepted = await CourierDelivery.findOne({ _id: courierId, driverId, status: 'ACCEPTED' });
+  if (alreadyAccepted) {
+    await ensureServicePlatformFeeLiability({ serviceType: 'COURIER', service: alreadyAccepted });
+    return alreadyAccepted;
+  }
   await assertEligibleCourierDriver(driverId);
+  await assertNoActiveAssignment(driverId, 'COURIER');
 
   const acceptedAt = new Date();
   const paymentDeadlineAt = new Date(
@@ -90,6 +109,12 @@ export async function acceptCourierDelivery(driverId, courierId) {
 
   if (!courier) {
     throw new AppError('Courier delivery is no longer available for acceptance.', 409);
+  }
+
+  try {
+    await ensureServicePlatformFeeLiability({ serviceType: 'COURIER', service: courier });
+  } catch (_error) {
+    throw new AppError('Courier was accepted, but its platform-fee liability could not be recorded. Retry acceptance to reconcile it.', 503);
   }
 
   return courier;
@@ -120,7 +145,14 @@ export async function updateCourierDeliveryStatus(driverId, courierId, status) {
   );
 
   if (!updated) throw new AppError('Courier delivery status changed. Refresh and try again.', 409);
-  return updated;
+
+  let earning = { credited: false };
+  if (status === 'DELIVERED') {
+    const payment = await Payment.findOne({ serviceType: 'COURIER', serviceId: updated._id, status: 'PAID' });
+    if (payment) earning = await creditCompletedPayment(payment._id);
+  }
+
+  return { courier: updated, earning };
 }
 
 export { calculateCourierPricing, COURIER_TRANSITIONS };

@@ -5,6 +5,8 @@ const links = [
   { to: '/', label: 'Ryda' },
   { to: '/rides', label: 'Book a ride' },
   { to: '/rides/history', label: 'Ride history' },
+  { to: '/courier', label: 'Courier' },
+  { to: '/driver', label: 'Driver dashboard' },
   { to: '/payments', label: 'Payments' },
   { to: '/admin', label: 'Admin' }
 ];

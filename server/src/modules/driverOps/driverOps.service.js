@@ -2,10 +2,11 @@ import AppError from '../../shared/utils/AppError.js';
 import {
   getCourierModel,
   getDriverProfileModel,
-  getLiabilityModel,
   getRideModel,
   getWalletModel
 } from './driverOps.models.js';
+import { getDriverFinancialEligibility } from '../payments/services/liabilityService.js';
+import { findActiveAssignments } from '../../shared/services/activeAssignmentService.js';
 
 const ACTIVE_RIDE_STATUSES = ['ACCEPTED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'IN_PROGRESS'];
 const ACTIVE_COURIER_STATUSES = ['ACCEPTED', 'PICKED_UP', 'IN_TRANSIT'];
@@ -22,23 +23,12 @@ async function getProfile(driverId) {
 }
 
 async function getLiabilitySummary(driverId) {
-  const PlatformFeeLiability = getLiabilityModel();
-
-  if (!PlatformFeeLiability) {
-    return { available: false, overdueTotal: null, outstandingTotal: null, items: [] };
-  }
-
-  const items = await PlatformFeeLiability.find({
-    driverId,
-    status: { $in: ['PENDING', 'OVERDUE'] }
-  }).lean();
-  const totalFor = (status) => items
-    .filter((item) => item.status === status)
-    .reduce((total, item) => total + Number(item.amount || 0), 0);
+  const eligibility = await getDriverFinancialEligibility(driverId);
+  const items = eligibility.liabilities.map((item) => item.toObject ? item.toObject() : item);
 
   return {
     available: true,
-    overdueTotal: totalFor('OVERDUE'),
+    overdueTotal: eligibility.overdueTotal,
     outstandingTotal: items.reduce((total, item) => total + Number(item.amount || 0), 0),
     items
   };
@@ -71,7 +61,16 @@ async function getEligibility(driverId, { requireOnline = false } = {}) {
 }
 
 export async function setAvailability(driverId, isOnline) {
-  const eligibility = await getEligibility(driverId);
+  let eligibility;
+  try {
+    eligibility = await getEligibility(driverId);
+  } catch (error) {
+    if (isOnline) throw error;
+    eligibility = {
+      profile: await getProfile(driverId),
+      liabilities: { available: false, overdueTotal: null, outstandingTotal: null, items: [] }
+    };
+  }
 
   if (isOnline && !eligibility.allowed) {
     throw new AppError(eligibility.reason, 403);
@@ -119,18 +118,23 @@ export async function buildDashboard(driverId) {
     Promise.resolve(getCourierModel()),
     Promise.resolve(getWalletModel())
   ]);
-  const [activeRide, activeCourier, completedRides, completedCourier, wallet] = await Promise.all([
+  const [activeRide, activeCourier, completedRides, completedCourier, wallet, activeAssignments] = await Promise.all([
     findOneActive(Ride, driverId, ACTIVE_RIDE_STATUSES),
     findOneActive(CourierDelivery, driverId, ACTIVE_COURIER_STATUSES),
     Ride ? Ride.countDocuments({ driverId, status: 'COMPLETED' }) : null,
     CourierDelivery ? CourierDelivery.countDocuments({ driverId, status: 'DELIVERED' }) : null,
-    DriverWallet ? DriverWallet.findOne({ driverId }).lean() : null
+    DriverWallet ? DriverWallet.findOne({ driverId }).lean() : null,
+    findActiveAssignments(driverId)
   ]);
+
+  const active = [activeRide && assignment('RIDE', activeRide), activeCourier && assignment('COURIER', activeCourier)].filter(Boolean);
 
   return {
     availability: { isOnline: profile.isOnline, isSuspended: profile.isSuspended },
     verificationStatus: profile.verificationStatus,
-    activeAssignment: assignment('RIDE', activeRide) || assignment('COURIER', activeCourier),
+    activeAssignment: active[0] || null,
+    activeAssignments: active,
+    assignmentConflict: active.length > 1,
     completed: { rides: completedRides, courier: completedCourier },
     wallet: wallet || null,
     liabilities

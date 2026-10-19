@@ -117,9 +117,38 @@ function LocationFields({ title, prefix, form, onChange }) {
 }
 
 export function CourierDetail({ courier, loading, error, onCancel, cancelling, onCourierUpdate }) {
+  const [payment, setPayment] = useState(null);
+  const [authorizationUrl, setAuthorizationUrl] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState(courier?.paymentStatus);
+
+  useEffect(() => {
+    setPaymentStatus(courier?.paymentStatus);
+    if (courier?.paymentStatus === 'PAID') {
+      setPayment(null);
+      setAuthorizationUrl('');
+    }
+  }, [courier?._id, courier?.paymentStatus]);
+
   if (loading) return <p className="text-sm text-slate-600">Loading courier details…</p>;
   if (error) return <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>;
   if (!courier) return <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">Select a courier request to view its details.</p>;
+
+  async function initializePayment() {
+    try {
+      const response = await api.post('/payments/initialize', { serviceType: 'COURIER', serviceId: courier._id });
+      setPayment(response.data.payment);
+      setAuthorizationUrl(response.data.authorizationUrl || '');
+    } catch (_error) {
+      setAuthorizationUrl('');
+    }
+  }
+
+  async function verifyPayment() {
+    if (!payment?.reference) return;
+    await api.get(`/payments/verify/${encodeURIComponent(payment.reference)}`);
+    setPaymentStatus('PAID');
+    onCourierUpdate((current) => ({ ...current, paymentStatus: 'PAID' }));
+  }
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -134,6 +163,7 @@ export function CourierDetail({ courier, loading, error, onCancel, cancelling, o
         <div><dt className="font-medium text-slate-500">Drop-off</dt><dd className="mt-1">{courier.dropoff?.address || 'Unavailable'}</dd></div>
       </dl>
       <CourierLiveTracking courier={courier} onCourierUpdate={onCourierUpdate} />
+      {courier.driverId && paymentStatus !== 'PAID' && <section className="mt-5 space-y-2 border-t border-slate-200 pt-5"><h3 className="font-semibold">Pay for this delivery</h3>{!payment ? <button type="button" onClick={initializePayment} className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white">Continue to Paystack</button> : <><p className="text-sm text-slate-600">Reference: {payment.reference}</p>{authorizationUrl && <a className="block text-sm text-indigo-700 underline" href={authorizationUrl} target="_blank" rel="noreferrer">Open Paystack checkout</a>}<button type="button" onClick={verifyPayment} className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white">Verify payment</button></>}</section>}
       {canCancel(courier) && <button type="button" disabled={cancelling} onClick={() => onCancel(courier._id)} className="mt-5 rounded-lg border border-rose-300 px-4 py-2 font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60">{cancelling ? 'Cancelling…' : 'Cancel courier request'}</button>}
     </article>
   );

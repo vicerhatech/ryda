@@ -5,6 +5,7 @@ import AppError from '../../../shared/utils/AppError.js';
 import Payment from '../../payments/models/Payment.js';
 import { ensureServicePlatformFeeLiability, waiveServicePlatformFeeLiability } from '../../payments/services/liabilityService.js';
 import { creditCompletedPayment } from '../../payments/services/paymentService.js';
+import { assertNoActiveAssignment } from '../../../shared/services/activeAssignmentService.js';
 import { Ride } from '../models/Ride.js';
 import { assertDriverEligible } from '../services/driverEligibility.js';
 import { assertValidRideTransition, operationalTimestamps } from '../services/rideStatusMachine.js';
@@ -28,6 +29,7 @@ export async function acceptRide(request, response, next) {
     }
 
     await assertDriverEligible(request.user.id);
+    await assertNoActiveAssignment(request.user.id, 'RIDE');
 
     const acceptedAt = new Date();
     const ride = await Ride.findOneAndUpdate(

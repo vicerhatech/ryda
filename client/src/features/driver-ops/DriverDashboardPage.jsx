@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/lib/api.js';
+import { useAuth } from '../identity';
+import { DriverRideLocationPublisher } from '../rides';
+import { CourierDriverLocationPublisher } from '../courier/CourierTracking.jsx';
 
 function getErrorMessage(error, fallback) {
   return error.response?.data?.message || fallback;
@@ -131,6 +134,7 @@ export function DashboardSummaries({ dashboard }) {
 }
 
 export default function DriverDashboardPage() {
+  const { token, user } = useAuth();
   const [dashboard, setDashboard] = useState(null);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -255,6 +259,9 @@ export default function DriverDashboardPage() {
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">Active assignment</h2></div>
           <ActiveAssignmentCard assignment={dashboard.activeAssignment} />
+          {dashboard.assignmentConflict && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">This driver has conflicting active assignments. Complete or resolve one before accepting another request.</p>}
+          {dashboard.activeAssignment?.serviceType === 'RIDE' && <DriverRideLocationPublisher ride={{ _id: dashboard.activeAssignment.id, status: dashboard.activeAssignment.status, driverId: user?.id }} accessToken={token} isAssignedDriver />}
+          {dashboard.activeAssignment?.serviceType === 'COURIER' && <CourierDriverLocationPublisher courier={{ _id: dashboard.activeAssignment.id, status: dashboard.activeAssignment.status, driverId: user?.id }} currentUserId={user?.id} />}
         </section>
 
         <section className="space-y-3">
