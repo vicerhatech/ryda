@@ -69,6 +69,28 @@ export function ensureServicePlatformFeeLiability({ serviceType, service }) {
   });
 }
 
+export async function waiveServicePlatformFeeLiability({ driverId, serviceType, serviceId, reason }) {
+  const driverObjectId = toObjectId(driverId, 'driverId');
+  const serviceObjectId = toObjectId(serviceId, 'serviceId');
+  getServiceConfig(serviceType);
+
+  const waived = await PlatformFeeLiability.findOneAndUpdate(
+    { driverId: driverObjectId, serviceType, serviceId: serviceObjectId, status: { $in: ['PENDING', 'OVERDUE'] } },
+    {
+      $set: {
+        status: 'WAIVED',
+        waivedAt: new Date(),
+        reason: typeof reason === 'string' && reason.trim() ? reason.trim() : 'Service cancelled or no-show.'
+      }
+    },
+    { new: true }
+  );
+
+  if (waived) return waived;
+
+  return PlatformFeeLiability.findOne({ driverId: driverObjectId, serviceType, serviceId: serviceObjectId });
+}
+
 async function reconcileOneLiability(liability, now) {
   if (liability.status !== 'PENDING' || liability.dueAt > now) return liability;
 
