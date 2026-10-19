@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 import { api } from '../../../shared/lib/api';
 import { useAuth } from '../../identity';
 import RideTrackingMap from '../components/RideTrackingMap';
+import { getRideSocket } from '../lib/rideSocket';
 
 export default function RideHistoryPage() {
+  const { token } = useAuth();
   const [rides, setRides] = useState([]);
-  const [selectedRide, setSelectedRide] = useState(null);
+  const [selectedRideId, setSelectedRideId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -30,6 +32,41 @@ export default function RideHistoryPage() {
     };
   }, []);
 
+  const rideIds = rides
+    .filter((ride) => !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(ride.status))
+    .map((ride) => ride._id)
+    .join(',');
+
+  useEffect(() => {
+    if (!token || !rideIds) return undefined;
+
+    const socket = getRideSocket(token);
+    const ids = rideIds.split(',');
+    const joinRides = () => ids.forEach((rideId) => socket.emit('ride:join', { rideId }));
+    const updateRide = (update) => {
+      setRides((current) => current.map((ride) => (
+        String(ride._id) === String(update.rideId)
+          ? { ...ride, status: update.status, driverId: update.driverId ?? ride.driverId }
+          : ride
+      )));
+    };
+
+    socket.on('connect', joinRides);
+    socket.on('ride:accepted', updateRide);
+    socket.on('ride:status:update', updateRide);
+    if (!socket.connected) socket.connect();
+    else joinRides();
+
+    return () => {
+      ids.forEach((rideId) => socket.emit('ride:leave', { rideId }));
+      socket.off('connect', joinRides);
+      socket.off('ride:accepted', updateRide);
+      socket.off('ride:status:update', updateRide);
+    };
+  }, [rideIds, token]);
+
+  const selectedRide = rides.find((ride) => String(ride._id) === String(selectedRideId));
+
   if (isLoading) return <p className="text-slate-600">Loading your rides…</p>;
   if (error) return <p className="text-red-600" role="alert">{error}</p>;
 
@@ -48,7 +85,7 @@ export default function RideHistoryPage() {
             <button
               key={ride._id}
               className="w-full rounded-xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-200 hover:ring-emerald-500"
-              onClick={() => setSelectedRide(ride)}
+              onClick={() => setSelectedRideId(ride._id)}
               type="button"
             >
               <span className="block font-semibold text-slate-900">{ride.pickup?.address} → {ride.destination?.address}</span>
@@ -58,13 +95,12 @@ export default function RideHistoryPage() {
         </div>
       )}
 
-      {selectedRide && <RideDetails ride={selectedRide} />}
+      {selectedRide && <RideDetails ride={selectedRide} accessToken={token} />}
     </section>
   );
 }
 
-function RideDetails({ ride }) {
-  const { token } = useAuth();
+function RideDetails({ ride, accessToken }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [message, setMessage] = useState('');
@@ -129,7 +165,7 @@ function RideDetails({ ride }) {
 
       {['ACCEPTED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'IN_PROGRESS'].includes(ride.status) && (
         <div className="mt-5">
-          <RideTrackingMap ride={ride} accessToken={token} />
+          <RideTrackingMap ride={ride} accessToken={accessToken} />
         </div>
       )}
 
