@@ -2,11 +2,19 @@
   "name": "ryda",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["client", "server"],
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev:client": "npm run dev --workspace=client",
     "dev:server": "npm run dev --workspace=server",
     "build": "npm run build --workspace=client",
     "start": "npm run start --workspace=server"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "react": "^19.0.0-rc.1",
+    "react-dom": "^19.0.0-rc.1"
   }
 }
