@@ -2,6 +2,9 @@ import mongoose from 'mongoose';
 
 import { RYDA_CONFIG } from '../../../shared/constants/rydaConfig.js';
 import AppError from '../../../shared/utils/AppError.js';
+import Payment from '../../payments/models/Payment.js';
+import { ensureServicePlatformFeeLiability, waiveServicePlatformFeeLiability } from '../../payments/services/liabilityService.js';
+import { creditCompletedPayment } from '../../payments/services/paymentService.js';
 import { Ride } from '../models/Ride.js';
 import { assertDriverEligible } from '../services/driverEligibility.js';
 import { assertValidRideTransition, operationalTimestamps } from '../services/rideStatusMachine.js';
@@ -15,6 +18,13 @@ export async function acceptRide(request, response, next) {
 
     if (!mongoose.isValidObjectId(id)) {
       throw new AppError('Ride not found.', 404);
+    }
+
+    const alreadyAccepted = await Ride.findOne({ _id: id, driverId: request.user.id, status: 'ACCEPTED' });
+    if (alreadyAccepted) {
+      await ensureServicePlatformFeeLiability({ serviceType: 'RIDE', service: alreadyAccepted });
+      emitRideAccepted(alreadyAccepted);
+      return response.status(200).json({ ride: alreadyAccepted });
     }
 
     await assertDriverEligible(request.user.id);
@@ -34,7 +44,19 @@ export async function acceptRide(request, response, next) {
     );
 
     if (!ride) {
+      const acceptedRide = await Ride.findOne({ _id: id, driverId: request.user.id, status: 'ACCEPTED' });
+      if (acceptedRide) {
+        await ensureServicePlatformFeeLiability({ serviceType: 'RIDE', service: acceptedRide });
+        emitRideAccepted(acceptedRide);
+        return response.status(200).json({ ride: acceptedRide });
+      }
       throw new AppError('This ride is no longer available to accept.', 409);
+    }
+
+    try {
+      await ensureServicePlatformFeeLiability({ serviceType: 'RIDE', service: ride });
+    } catch (error) {
+      return next(new AppError('Ride was accepted, but its platform-fee liability could not be recorded. Retry acceptance to reconcile it.', 503));
     }
 
     emitRideAccepted(ride);
@@ -57,13 +79,31 @@ export async function updateRideStatus(request, response, next) {
       throw new AppError('A target ride status is required.', 400);
     }
 
-    const ride = await Ride.findById(id).select('driverId status');
+    const ride = await Ride.findById(id).select('driverId status paymentStatus');
     if (!ride) {
       throw new AppError('Ride not found.', 404);
     }
 
     if (!ride.driverId || ride.driverId.toString() !== request.user.id) {
       throw new AppError('Only the assigned driver can update this ride.', 403);
+    }
+
+    if (ride.status === status && ['CANCELLED', 'NO_SHOW'].includes(status)) {
+      if (ride.paymentStatus !== 'PAID') {
+        await waiveServicePlatformFeeLiability({
+          driverId: request.user.id,
+          serviceType: 'RIDE',
+          serviceId: id,
+          reason: `Ride ${status.toLowerCase()}.`
+        });
+      }
+      return response.status(200).json({ ride, earning: { credited: false } });
+    }
+
+    if (ride.status === 'COMPLETED' && status === 'COMPLETED') {
+      const payment = await Payment.findOne({ serviceType: 'RIDE', serviceId: id, status: 'PAID' });
+      const earning = payment ? await creditCompletedPayment(payment._id) : { credited: false };
+      return response.status(200).json({ ride, earning });
     }
 
     assertValidRideTransition(ride.status, status);
@@ -79,7 +119,35 @@ export async function updateRideStatus(request, response, next) {
     }
 
     emitRideStatusUpdate(updatedRide);
-    return response.status(200).json({ ride: updatedRide });
+
+    if (status === 'CANCELLED' || status === 'NO_SHOW') {
+      if (updatedRide.paymentStatus !== 'PAID') {
+        try {
+          await waiveServicePlatformFeeLiability({
+            driverId: request.user.id,
+            serviceType: 'RIDE',
+            serviceId: updatedRide._id,
+            reason: `Ride ${status.toLowerCase()}.`
+          });
+        } catch (error) {
+          return next(new AppError('Ride status was updated, but its platform-fee liability waiver could not be recorded.', 503));
+        }
+      }
+    }
+
+    let earning = { credited: false };
+    if (status === 'COMPLETED') {
+      const payment = await Payment.findOne({ serviceType: 'RIDE', serviceId: updatedRide._id, status: 'PAID' });
+      if (payment) {
+        try {
+          earning = await creditCompletedPayment(payment._id);
+        } catch (error) {
+          return next(new AppError('Ride completed, but wallet credit could not be applied. Retry the completed status request to reconcile it.', 503));
+        }
+      }
+    }
+
+    return response.status(200).json({ ride: updatedRide, earning });
   } catch (error) {
     return next(error);
   }

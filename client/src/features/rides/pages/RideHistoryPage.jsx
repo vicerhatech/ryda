@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { api } from '../../../shared/lib/api';
+import { useAuth } from '../../identity';
+import RideTrackingMap from '../components/RideTrackingMap';
 
 export default function RideHistoryPage() {
   const [rides, setRides] = useState([]);
@@ -62,10 +64,38 @@ export default function RideHistoryPage() {
 }
 
 function RideDetails({ ride }) {
+  const { token } = useAuth();
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [payment, setPayment] = useState(null);
+  const [authorizationUrl, setAuthorizationUrl] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState(ride.paymentStatus);
+
+  async function initializePayment() {
+    setMessage('');
+    try {
+      const { data } = await api.post('/payments/initialize', { serviceType: 'RIDE', serviceId: ride._id });
+      setPayment(data.payment);
+      setAuthorizationUrl(data.authorizationUrl || '');
+      if (!data.authorizationUrl) setMessage('A pending payment already exists. Finish checkout and verify it here.');
+    } catch (requestError) {
+      setMessage(requestError.response?.data?.message || 'Unable to start payment.');
+    }
+  }
+
+  async function verifyPayment() {
+    if (!payment?.reference) return;
+    setMessage('');
+    try {
+      await api.get(`/payments/verify/${encodeURIComponent(payment.reference)}`);
+      setPaymentStatus('PAID');
+      setMessage('Ride payment verified.');
+    } catch (requestError) {
+      setMessage(requestError.response?.data?.message || 'Payment is not verified yet.');
+    }
+  }
 
   async function submitReview(event) {
     event.preventDefault();
@@ -96,6 +126,27 @@ function RideDetails({ ride }) {
         <div><dt className="font-medium">Status</dt><dd>{ride.status}</dd></div>
         <div><dt className="font-medium">Fare</dt><dd>₦{ride.grossFare}</dd></div>
       </dl>
+
+      {['ACCEPTED', 'DRIVER_ARRIVING', 'DRIVER_ARRIVED', 'IN_PROGRESS'].includes(ride.status) && (
+        <div className="mt-5">
+          <RideTrackingMap ride={ride} accessToken={token} />
+        </div>
+      )}
+
+      {ride.driverId && paymentStatus !== 'PAID' && (
+        <section className="mt-5 space-y-3 border-t border-slate-200 pt-5">
+          <h3 className="font-semibold text-slate-900">Pay for this ride</h3>
+          {!payment ? (
+            <button className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white" onClick={initializePayment} type="button">Continue to Paystack</button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-slate-600">Reference: {payment.reference}</p>
+              {authorizationUrl && <a className="block text-sm font-medium text-emerald-700 underline" href={authorizationUrl} rel="noreferrer" target="_blank">Open Paystack checkout</a>}
+              <button className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white" onClick={verifyPayment} type="button">Verify payment</button>
+            </div>
+          )}
+        </section>
+      )}
 
       {ride.status === 'COMPLETED' && (
         <form className="mt-5 space-y-3 border-t border-slate-200 pt-5" onSubmit={submitReview}>

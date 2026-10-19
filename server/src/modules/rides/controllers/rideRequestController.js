@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import AppError from '../../../shared/utils/AppError.js';
+import { waiveServicePlatformFeeLiability } from '../../payments/services/liabilityService.js';
 import { Ride } from '../models/Ride.js';
 import { emitRideStatusUpdate } from '../sockets/rideTrackingSocket.js';
 
@@ -63,9 +64,21 @@ export async function cancelRide(request, response, next) {
       throw new AppError('Ride not found.', 404);
     }
 
-    const ride = await Ride.findOne({ _id: id, riderId: request.user.id }).select('status');
+    const ride = await Ride.findOne({ _id: id, riderId: request.user.id }).select('status driverId paymentStatus');
     if (!ride) {
       throw new AppError('Ride not found.', 404);
+    }
+
+    if (ride.status === 'CANCELLED') {
+      if (ride.driverId && ride.paymentStatus !== 'PAID') {
+        await waiveServicePlatformFeeLiability({
+          driverId: ride.driverId,
+          serviceType: 'RIDE',
+          serviceId: id,
+          reason: 'Ride cancelled by its rider.'
+        });
+      }
+      return response.status(200).json({ ride });
     }
 
     if (!CANCELLABLE_STATUSES.includes(ride.status)) {
@@ -83,6 +96,20 @@ export async function cancelRide(request, response, next) {
     }
 
     emitRideStatusUpdate(cancelledRide);
+
+    if (cancelledRide.driverId && cancelledRide.paymentStatus !== 'PAID') {
+      try {
+        await waiveServicePlatformFeeLiability({
+          driverId: cancelledRide.driverId,
+          serviceType: 'RIDE',
+          serviceId: cancelledRide._id,
+          reason: 'Ride cancelled by its rider.'
+        });
+      } catch (error) {
+        return next(new AppError('Ride was cancelled, but its platform-fee liability waiver could not be recorded.', 503));
+      }
+    }
+
     return response.status(200).json({ ride: cancelledRide });
   } catch (error) {
     return next(error);

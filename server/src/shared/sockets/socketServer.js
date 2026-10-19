@@ -10,13 +10,6 @@ export function initializeSocket(httpServer) {
     }
   });
 
-  io.on('connection', (socket) => {
-    socket.on('service:join', ({ serviceType, serviceId }) => {
-      if (!['ride', 'courier'].includes(serviceType) || !serviceId) return;
-      socket.join(`${serviceType}:${serviceId}`);
-    });
-  });
-
   return io;
 }
 

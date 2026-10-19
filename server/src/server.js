@@ -3,11 +3,13 @@ import http from 'http';
 import app from './app.js';
 import connectDatabase from './shared/config/database.js';
 import { initializeSocket } from './shared/sockets/socketServer.js';
+import { registerRideTrackingSocket } from './modules/rides/sockets/rideTrackingSocket.js';
 
 const port = Number(process.env.PORT) || 5000;
 const server = http.createServer(app);
 
-initializeSocket(server);
+const io = initializeSocket(server);
+registerRideTrackingSocket(io);
 
 async function startServer() {
   if (process.env.MONGODB_URI) {

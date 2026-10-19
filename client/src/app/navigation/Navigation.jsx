@@ -3,6 +3,8 @@ import { LogoutButton, useAuth } from '../../features/identity';
 
 const links = [
   { to: '/', label: 'Ryda' },
+  { to: '/rides', label: 'Book a ride' },
+  { to: '/rides/history', label: 'Ride history' },
   { to: '/payments', label: 'Payments' },
   { to: '/admin', label: 'Admin' }
 ];

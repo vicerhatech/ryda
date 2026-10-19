@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import DriverWalletPage from '../features/payments/DriverWalletPage';
 import AdminDashboard from '../features/admin/AdminDashboard';
 import { DriverVerificationPage, LoginPage, ProfilePage, RegisterPage } from '../features/identity';
+import { RideBookingPage, RideHistoryPage } from '../features/rides';
 
 function Home() {
   return (
@@ -24,6 +25,8 @@ export default function AppRoutes() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/driver-verification" element={<DriverVerificationPage />} />
+      <Route path="/rides" element={<RideBookingPage />} />
+      <Route path="/rides/history" element={<RideHistoryPage />} />
       {/* Feature owners replace these baseline placeholders when their routes are integrated. */}
       <Route path="/payments/*" element={<DriverWalletPage />} />
       <Route path="/admin/*" element={<AdminDashboard />} />
