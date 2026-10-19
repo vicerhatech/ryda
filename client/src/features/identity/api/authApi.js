@@ -34,6 +34,18 @@ export async function submitDriverVerification(token, payload) {
   return response.data.profile;
 }
 
+export async function uploadDriverVerificationFiles(token, files) {
+  const formData = new FormData();
+  formData.append('vehicleImage', files.vehicleImage);
+  formData.append('identityDocument', files.identityDocument);
+
+  const response = await api.post('/driver-verification/upload', formData, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  return response.data;
+}
+
 export async function getMyDriverVerification(token) {
   const response = await api.get('/driver-verification/me', {
     headers: { Authorization: `Bearer ${token}` }

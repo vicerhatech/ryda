@@ -1,12 +1,16 @@
 import AppError from '../../../shared/utils/AppError.js';
 import DriverProfile from '../models/DriverProfile.js';
 
-export async function submitDriverVerification(userId, submission) {
+export async function ensureDriverVerificationNotSubmitted(userId) {
   const existingProfile = await DriverProfile.findOne({ userId });
 
   if (existingProfile) {
     throw new AppError('Driver verification has already been submitted.', 409);
   }
+}
+
+export async function submitDriverVerification(userId, submission) {
+  await ensureDriverVerificationNotSubmitted(userId);
 
   try {
     return await DriverProfile.create({

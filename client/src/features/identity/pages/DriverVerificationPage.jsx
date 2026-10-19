@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
-import { getAuthError, getMyDriverVerification } from '../api/authApi';
+import {
+  getAuthError,
+  getMyDriverVerification,
+  submitDriverVerification,
+  uploadDriverVerificationFiles
+} from '../api/authApi';
 import { useAuth } from '../hooks/AuthContext';
 
 const INITIAL_VALUES = {
@@ -41,6 +46,7 @@ export default function DriverVerificationPage() {
   const [identityDocumentFile, setIdentityDocumentFile] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!token || user?.role !== 'DRIVER') {
@@ -111,7 +117,7 @@ export default function DriverVerificationPage() {
     setFile(file);
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setError('');
 
@@ -123,9 +129,24 @@ export default function DriverVerificationPage() {
       return;
     }
 
-    setError(
-      'Secure file upload is not configured yet. A server-side Cloudinary upload endpoint is required before this verification can be submitted.'
-    );
+    setIsSubmitting(true);
+
+    try {
+      const uploadedFiles = await uploadDriverVerificationFiles(token, {
+        vehicleImage: vehicleImageFile,
+        identityDocument: identityDocumentFile
+      });
+      const submittedProfile = await submitDriverVerification(token, {
+        vehicleNumber: values.vehicleNumber,
+        ...uploadedFiles
+      });
+
+      setProfile(submittedProfile);
+    } catch (requestError) {
+      setError(getAuthError(requestError));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   if (profile) {
@@ -206,8 +227,9 @@ export default function DriverVerificationPage() {
         <button
           className="w-full rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800"
           type="submit"
+          disabled={isSubmitting}
         >
-          Submit for verification
+          {isSubmitting ? 'Uploading verification files…' : 'Submit for verification'}
         </button>
       </form>
     </AuthLayout>

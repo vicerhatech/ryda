@@ -1,6 +1,10 @@
 import cors from 'cors';
 import express from 'express';
 import { notFoundHandler, errorHandler } from './shared/middleware/errorMiddleware.js';
+import paymentRoutes from './modules/payments/paymentRoutes.js';
+import liabilityRoutes from './modules/payments/liabilityRoutes.js';
+import adminRoutes from './modules/admin/adminRoutes.js';
+import { identityRouter } from './modules/identity/index.js';
 
 const app = express();
 
@@ -11,8 +15,10 @@ app.get('/api/health', (_request, response) => {
   response.status(200).json({ status: 'ok' });
 });
 
-// Feature routers are mounted here by their owners during the scheduled integration tasks.
-// /api/auth, /api/rides, /api/courier, /api/driver, /api/payments and /api/admin
+app.use('/api', identityRouter);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/driver', liabilityRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
