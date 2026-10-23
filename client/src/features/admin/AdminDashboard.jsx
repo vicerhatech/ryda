@@ -118,7 +118,13 @@ export default function AdminDashboard() {
               <Cell>{withdrawal.driverId?.fullName || withdrawal.driverId?.email || String(withdrawal.driverId)}</Cell>
               <Cell>{naira.format(withdrawal.amount)}</Cell>
               <Cell>{withdrawal.status}</Cell>
-              <Cell>{withdrawal.status === 'PENDING' && <><ActionButton disabled={busy === withdrawal._id} onClick={() => runAction(withdrawal._id, () => api.patch(`/admin/withdrawals/${withdrawal._id}`, { status: 'APPROVED' }))}>Approve</ActionButton>{' '}<ActionButton tone="danger" disabled={busy === withdrawal._id} onClick={() => runAction(withdrawal._id, () => api.patch(`/admin/withdrawals/${withdrawal._id}`, { status: 'REJECTED' }))}>Reject</ActionButton></>}</Cell>
+              <Cell>
+                {withdrawal.status === 'PENDING' && <>
+                  <ActionButton disabled={busy === withdrawal._id} onClick={() => runAction(withdrawal._id, () => api.patch(`/admin/withdrawals/${withdrawal._id}`, { status: 'APPROVED' }))}>Approve</ActionButton>{' '}
+                  <ActionButton tone="danger" disabled={busy === withdrawal._id} onClick={() => runAction(withdrawal._id, () => api.patch(`/admin/withdrawals/${withdrawal._id}`, { status: 'REJECTED' }))}>Reject</ActionButton>
+                </>}
+                {withdrawal.status === 'APPROVED' && <ActionButton disabled={busy === withdrawal._id} onClick={() => runAction(withdrawal._id, () => api.patch(`/admin/withdrawals/${withdrawal._id}`, { status: 'PAID' }))}>Mark paid</ActionButton>}
+              </Cell>
             </tr>
           ))}
         </Table>
@@ -131,6 +137,7 @@ export default function AdminDashboard() {
       <Panel title="Rides"><RecordTable records={data.rides} fields={['_id', 'status', 'paymentStatus', 'grossFare']} /></Panel>
       <Panel title="Courier deliveries"><RecordTable records={data.courier} fields={['_id', 'status', 'paymentStatus', 'grossFare']} /></Panel>
       <Panel title="Payment records"><RecordTable records={data.payments} fields={['_id', 'serviceType', 'grossAmount', 'status', 'provider']} /></Panel>
+      <Panel title="Liability records"><RecordTable records={data.liabilities} fields={['_id', 'driverId', 'serviceType', 'serviceId', 'amount', 'status', 'dueAt']} /></Panel>
     </section>
   );
 }
