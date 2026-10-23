@@ -231,7 +231,7 @@ The captain creates this during the baseline scaffold before feature branches ar
 Suggested values:
 
 ```js
-export const RIDA_CONFIG = {
+export const RYDA_CONFIG = {
   KEKE_SEAT_CAPACITY: 4,
   RIDE_FARE_PER_SEAT_NGN: 150,
   COURIER_FARE_NGN: 150,
