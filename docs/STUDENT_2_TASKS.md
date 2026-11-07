@@ -159,7 +159,7 @@ Create ride map components.
 
 ## Features
 - pickup marker
-- destination marker
+- destination marker 
 - route line
 - driver marker when active
 - appropriate map bounds

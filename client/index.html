@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="RYDA is a campus mobility MVP for Keke rides and point-to-point package or document delivery." />
+    <meta name="theme-color" content="#09665d" />
+    <link rel="icon" type="image/png" href="/ryda_logo.png" />
+    <title>RYDA — Campus Rides &amp; Courier</title>
+  </head>
+  <body>
+    <script>
+      (() => {
+        try {
+          const preference = localStorage.getItem('ryda.theme') || 'system';
+          const displayMode = localStorage.getItem('ryda.display-mode') || 'system';
+          const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const darkThemes = ['dark-plus', 'kimbie-dark', 'abyss', 'red', 'monokai-dimmed', 'solarized-dark', 'tomorrow-night-blue'];
+          const selectedIsDark = darkThemes.includes(preference);
+          const modeIsDark = displayMode === 'dark' || (displayMode === 'system' && dark);
+          const active = modeIsDark ? (selectedIsDark ? preference : 'dark-plus') : (selectedIsDark ? 'light-plus' : preference);
+          document.documentElement.dataset.theme = active;
+          document.documentElement.dataset.themePreference = preference;
+          document.documentElement.dataset.displayMode = displayMode;
+        } catch (_) {}
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
